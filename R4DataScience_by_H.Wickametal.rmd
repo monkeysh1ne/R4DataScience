@@ -1,0 +1,218 @@
+---
+title: "R for Data Science"
+output: html_notebook
+---
+
+Src: [R4DataScience](https://r4ds.hadley.nz/)
+
+```{r load_libraries}
+library(nycflights13)
+library(tidyverse)
+```
+
+### DPLYR
+Dplyr always creates a new data frame as a result of its operations.  The original data frame remains untouched.
+
+---
+
+#### ROWS
+
+
+```{r row_functions}
+##########################################
+# Rows
+##########################################
+
+
+# filter
+flights |> 
+  filter(dep_delay > 120)
+
+flights |> 
+  filter(month == 1 & day == 1)
+
+flights |> 
+  filter(month == 1 | month == 2)
+# shorter version
+flights |> 
+  filter(month %in% c(1,2))
+
+# arrange
+flights |> 
+  arrange(year, month, day, dep_time)
+
+# desc inside arrange() sorts from big to small
+flights |> 
+  arrange(desc(dep_delay))
+
+# distinct() will find the first occurrence of a unique row in the dataset and discard the rest.
+# remove duplicte rows, if any
+flights |> 
+  ditinct()
+
+# find all unique origin and destination pairs
+flights |> 
+  distinct(origin, dest)
+
+# to keep all columns add .keep_all = TRUE
+flights |> 
+  distinct(origin, dest, .keep_all = TRUE)
+
+# If you want to find the number of occurrences instead, you’re better off swapping distinct() for count(), and with the sort = TRUE argument you can arrange them in descending order of number of occurrences.
+flights |> 
+  count(origin, dest, sort = TRUE)
+
+# exercise 3.2.5.1
+flights |> 
+  filter(arr_delay >= 120)
+
+flights |> 
+  filter(dest %in% c("IAH", "HOU"))
+
+flights |> 
+  filter(carrier %in% c("UA", "AA", "DL"))
+
+summerFlights <- flights |>   
+  filter(month %in% c(7,8,9))
+
+flights |> 
+  filter(arr_delay > 120 & dep_delay <= 0)
+
+flights |> 
+  filter(dep_delay >= 60 & arr_delay < -30)
+
+# flights with longest delays
+flights[order(flights$dep_delay, decreasing = TRUE),] |> 
+  arrange(dep_time, sched_dep_time, dep_delay)
+
+# earliest departures flights
+flights[order(flights$dep_time),] |> 
+  arrange(sched_dep_time, dep_time, dep_delay)
+
+# find fastest flights
+flights |> 
+  distinct(air_time, origin, dest) |> 
+  arrange(air_time, origin, dest)
+```
+
+---
+
+#### COLUMNS
+
+```{r column_functions}
+##########################################
+# Columns
+##########################################
+
+# Mutate
+
+# compute the gain, how much time a delayed flight made up in the air, and the speed in miles per hour.
+# the '.before' arg places new columns at front (left) of cols as opposed to rear (right)
+flights |> 
+  mutate(
+    gain = dep_delay - arr_delay,
+    speed = distance / air_time * 60,
+    .before = 1
+    )
+
+# control which variables are kept with the .keep argument. A particularly useful argument is "used" which specifies that we only keep the columns that were involved or created in the mutate() step.
+
+flights |> 
+  mutate(
+    gain = dep_delay - arr_delay,
+    hours = air_time / 60,
+    gain_per_hour = gain / hours,
+    .keep = "used"
+  )
+
+# Select
+
+#########################################
+# Diversion to test janitor::clean_names() out
+#########################################
+
+# Open the air-quality-data-coor-2023-11-01-to-2023-11-10.csv file
+# and try out janitor on its col_names.
+airQual <- read.csv("~/r_dev/Playground/air-quality-data-coor-2023-11-01-to-2023-11-10.csv")
+glimpse(airQualnew)
+library(janitor)
+airQualnew <- clean_names(airQual, "snake")
+
+
+# 3.3.3 Rename
+
+# name on left replaces existing name on right
+flights |> 
+  rename(tail_num = tailnum)
+
+# moves vars around (defaults by moving to the front)
+flights |> 
+  relocate(time_hour, air_time)
+
+flights |> 
+  select(dep_time, sched_dep_time, dep_delay) |> 
+  rename(dep_delay_min = dep_delay) |> 
+  relocate(sched_dep_time)
+
+flights |> 
+  select(dep_delay, dep_delay, arr_time, arr_time)
+
+variables <- c("year", "month", "day", "dep_delay", "arr_time")
+flights |> 
+  select(any_of(variables))
+
+flights |> 
+  select(contains("TIME", ignore.case = T))
+
+flights |> 
+  rename(air_time_min = air_time) |> 
+  relocate(air_time_min)
+
+flights |> 
+  select(tailnum, arr_delay) |> 
+  arrange(arr_delay)
+```
+
+---
+
+#### GROUPS
+
+```{r groups}
+
+#######################################################
+# Groups
+#######################################################
+
+flights |> 
+  group_by(month)
+# group_by() doesn’t change the data but, if you look closely at the output, you’ll notice that the output indicates that it is “grouped by” month (Groups: month [12]). This means subsequent operations will now work “by month”. group_by() adds this grouped feature (referred to as class) to the data frame, which changes the behaviour of the subsequent verbs applied to the data.
+
+flights |> 
+  group_by(month) |> 
+  summarise(
+    avg_delay = mean(dep_delay, na.rm = T)
+  )
+
+flights |> 
+  group_by(month) |> 
+  summarise(
+    avg_delay = mean(dep_delay, na.rm = T),
+    count = n()
+  )
+
+# Slice
+# There are five handy functions that allow you extract specific rows within each group:
+# df |> slice_head(n = 1) takes the first row from each group.
+# df |> slice_tail(n = 1) takes the last row in each group.
+# df |> slice_min(x, n = 1) takes the row with the smallest value of column x.
+# df |> slice_max(x, n = 1) takes the row with the largest value of column x.
+# df |> slice_sample(n = 1) takes one random row.
+# You can vary n to select more than one row, or instead of n =, you can use prop = 0.1 to select (e.g.) 10% of the rows in each group. For example, the following code finds the flights that are most delayed upon arrival at each destination:
+
+flights |> 
+  group_by(dest) |> 
+  mutate(delay_mins = dep_delay + arr_delay) |> 
+  slice_max(arr_delay, n = 1) |> 
+  relocate(dest, dep_delay, arr_delay, delay_mins)
+```
+
